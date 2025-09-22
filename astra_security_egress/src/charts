@@ -1,0 +1,59 @@
+# Generates charts into out/ as PNGs (bar chart of alert kinds, events/time, top hosts)
+import json
+from pathlib import Path
+from collections import Counter, defaultdict
+from datetime import datetime
+
+import matplotlib
+matplotlib.use("Agg")  # save to files
+import matplotlib.pyplot as plt
+
+ROOT = Path(__file__).resolve().parents[1]
+outdir = ROOT / "out"; outdir.mkdir(exist_ok=True)
+
+egress_path = outdir / "egress.jsonl"
+alerts_path = outdir / "alerts.json"
+if not egress_path.exists() or not alerts_path.exists():
+    raise SystemExit("Missing inputs. Run simulate_egress.py and detect_exfil.py first.")
+
+events = [json.loads(l) for l in egress_path.read_text(encoding="utf-8").splitlines()]
+alerts = json.loads(alerts_path.read_text(encoding="utf-8"))
+
+# 1) Bar: alerts by kind
+by_kind = Counter(a["kind"] for a in alerts)
+plt.figure()
+plt.title("Alerts by kind")
+plt.xlabel("Kind"); plt.ylabel("Count")
+plt.bar(list(by_kind.keys()), list(by_kind.values()))
+plt.xticks(rotation=30, ha="right")
+plt.tight_layout()
+plt.savefig(outdir / "chart_alerts_by_kind.png")
+
+# 2) Time series: events per minute
+per_min = defaultdict(int)
+for e in events:
+    dt = datetime.fromisoformat(e["ts"])
+    key = dt.replace(second=0, microsecond=0)
+    per_min[key] += 1
+xs = sorted(per_min.keys())
+ys = [per_min[t] for t in xs]
+plt.figure()
+plt.title("Events per minute")
+plt.xlabel("Time"); plt.ylabel("Events")
+plt.plot(xs, ys)
+plt.tight_layout()
+plt.savefig(outdir / "chart_events_per_minute.png")
+
+# 3) Top hosts
+host_counts = Counter(e["host"] for e in events).most_common(15)
+labels = [h for h,_ in host_counts]
+values = [c for _,c in host_counts]
+plt.figure()
+plt.title("Top hosts (15)")
+plt.xlabel("Host"); plt.ylabel("Count")
+plt.bar(labels, values)
+plt.xticks(rotation=60, ha="right")
+plt.tight_layout()
+plt.savefig(outdir / "chart_top_hosts.png")
+
+print("Charts written to:", outdir)
