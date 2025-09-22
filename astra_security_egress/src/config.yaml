@@ -1,0 +1,13 @@
+seed: 20250920
+participants: 8
+duration_minutes: 12
+events_per_minute_mean: 25
+canary_domains: [ai-canary.internal.example, audit-canary.gov-test.example]
+suspicious_tlds: [.zip, .mov, .xyz, .top]
+entropy_threshold: 3.3
+rare_domain_threshold: 0.01
+data_spike_threshold_kb: 512
+model_initiated_rate: 0.15
+exfil_burst_probability: 0.08
+exfil_burst_size_mean: 40
+time_jitter_ms: 200

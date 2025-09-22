@@ -1,0 +1,32 @@
+{
+  "severity": "CRITICAL",
+  "reasons": [
+    "Active CANARY_HIT detected."
+  ],
+  "counts": {
+    "alerts_total": 746,
+    "by_kind": {
+      "CANARY_HIT": 24,
+      "RARE_DOMAIN": 383,
+      "SUSPICIOUS_HOST": 325,
+      "MODEL_INITIATED_EGRESS": 14
+    },
+    "top_canary_hits": {
+      "ai-canary.internal.example": 10,
+      "audit-canary.gov-test.example": 14
+    },
+    "exfil_like_hosts": [
+      "ep7h5c7uzaljv.cdn2.zip",
+      "5j4g8mgae7466td.cdn2.mov",
+      "2ujv6mgg5rtles7.cdn2.mov",
+      "d44hn1uz6ns8ewf34y.data.zip",
+      "p7ofogh1u2fiel0q.cdn2.zip",
+      "44o8puw96zgfu0k8csqe.cdn2.zip",
+      "g2n9gf3glp6z8p.files.mov",
+      "cuv95gjcyudn5.data.mov",
+      "kxvxs6y9pu7ky4mz3a21.files.zip",
+      "uol1pqgs806cr.data.mov"
+    ],
+    "large_model_egress_events": 0
+  }
+}
