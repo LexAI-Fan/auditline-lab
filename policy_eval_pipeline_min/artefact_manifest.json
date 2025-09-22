@@ -1,0 +1,10 @@
+{
+  "files": [
+    "protocol.yaml",
+    "simulate_data.py",
+    "analysis_glmm.py",
+    "environment.txt",
+    "README.md"
+  ],
+  "seed": 1337
+}
