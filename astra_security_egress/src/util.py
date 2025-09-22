@@ -1,8 +1,8 @@
-\
 from pathlib import Path
 import re
+
 def read_yaml_min(path):
-    txt = Path(path).read_text()
+    txt = Path(path).read_text(encoding="utf-8")
     def get_int(k, d):
         m = re.search(rf'^{k}:\s*([0-9]+)\s*$', txt, re.M)
         return int(m.group(1)) if m else d
@@ -28,3 +28,4 @@ def read_yaml_min(path):
         "exfil_burst_size_mean": get_int("exfil_burst_size_mean", 30),
         "time_jitter_ms": get_int("time_jitter_ms", 100),
     }
+
