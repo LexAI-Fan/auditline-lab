@@ -1,74 +1,52 @@
-\
-import json, random, string
+
+import json, random, string, argparse
 from pathlib import Path
 from datetime import datetime, timedelta
 from util import read_yaml_min
 
-cfg = read_yaml_min("src/config.yaml")
-random.seed(cfg["seed"])
+ROOT = Path(__file__).resolve().parents[1]
+cfg = read_yaml_min(str(ROOT / "src" / "config.yaml"))
 
-outdir = Path("out"); outdir.mkdir(exist_ok=True)
+parser = argparse.ArgumentParser()
+parser.add_argument("--scale", type=float, default=1.0, help="Multiply total events by this factor")
+parser.add_argument("--duration", type=int, default=cfg["duration_minutes"], help="Override duration_minutes")
+parser.add_argument("--rate", type=float, default=cfg["events_per_minute_mean"], help="Override events_per_minute_mean")
+parser.add_argument("--participants", type=int, default=cfg["participants"], help="Override participants")
+parser.add_argument("--seed", type=int, default=cfg["seed"], help="Override seed")
+args = parser.parse_args()
+
+random.seed(args.seed)
+outdir = ROOT / "out"; outdir.mkdir(exist_ok=True)
 egress_path = outdir / "egress.jsonl"
 
 BASE = datetime(2025, 9, 20, 12, 0, 0)
-T = cfg["duration_minutes"] * 60
-rate = cfg["events_per_minute_mean"] / 60.0
-participants = [f"p{i}" for i in range(cfg["participants"])]
+T = args.duration * 60
+rate = (args.rate / 60.0) * max(0.1, args.scale)
+participants = [f"p{i}" for i in range(max(1, args.participants))]
 
-popular_domains = [
-    "docs.example.com","storage.example.net","updates.corp.example",
-    "news.example.org","api.service.example","assets.cdn.example"
-]
-
-def rand_domain():
-    import math
-    from collections import Counter
-    if random.random() < 0.15:
-        token = ''.join(random.choice(string.ascii_lowercase+string.digits) for _ in range(random.randint(10,20)))
-        base = random.choice(["data","cdn","cdn2","files"])
-        tld = random.choice([".com",".net",".org",".zip",".mov",".top",".xyz"])
-        host = f"{token}.{base}{tld}"
-        c = Counter(token)
-        ent = -sum((v/len(token))*math.log2(v/len(token)) for v in c.values())
-        return host, round(ent,3)
-    else:
-        return random.choice(popular_domains), 1.5
-
-def rand_event(t0, pid):
-    dt = random.expovariate(rate)
-    t = t0 + timedelta(seconds=dt) + timedelta(milliseconds=random.randint(0, cfg["time_jitter_ms"]))
-    method = random.choice(["DNS","HTTPS"])
-    host, ent = rand_domain()
-    size_kb = max(1, int(random.gauss(32, 24)))
-    model_initiated = random.random() < cfg["model_initiated_rate"]
-    return t, dict(ts=t.isoformat(), pid=pid, method=method, host=host, size_kb=size_kb, ent=ent,
-                   model_initiated=model_initiated)
-
-evs=[]
-cur = BASE
+evs = []
 for pid in participants:
-    t = cur
-    while (t - cur).total_seconds() < T:
-        t, ev = rand_event(t, pid)
-        if random.random() < 0.01 and cfg["canary_domains"]:
-            ev["host"] = random.choice(cfg["canary_domains"])
-            ev["ent"] = 1.2
-        evs.append(ev)
-
-for _ in range(max(1, cfg["participants"]//3)):
+    n = max(1, int(T * rate))
+    for _ in range(n):
+        t = BASE + timedelta(seconds=int(random.uniform(0, T)))
+        host = f"api-{random.randint(10,99)}.example.com"
+        size_kb = max(1, int(abs(random.gauss(60, 20))))
+        ent = round(abs(random.gauss(2.5, 0.6)), 2)
+        model_initiated = random.random() < cfg["model_initiated_rate"]
+        evs.append(dict(ts=t.isoformat(), pid=pid, method="HTTPS", host=host,
+                        size_kb=size_kb, ent=ent, model_initiated=model_initiated))
+    # occasional exfil burst
     if random.random() < cfg["exfil_burst_probability"]:
-        pid = random.choice(participants)
-        t = BASE + timedelta(seconds=random.randint(0, T-60))
-        n = max(5, int(random.gauss(cfg["exfil_burst_size_mean"], 8)))
-        for i in range(n):
+        t = BASE + timedelta(seconds=random.randint(0, max(1, T-60)))
+        n = max(5, int(random.gauss(cfg["exfil_burst_size_mean"] * args.scale, 8)))
+        for _ in range(n):
             t += timedelta(seconds=random.uniform(0.5, 2.0))
-            host = ''.join(random.choice(string.ascii_lowercase+string.digits) for _ in range(16)) + ".dl.zip"
-            ev = dict(ts=t.isoformat(), pid=pid, method="HTTPS", host=host,
-                      size_kb=int(abs(random.gauss(900, 150))), ent=3.8, model_initiated=True)
-            evs.append(ev)
+            host = ''.join(random.choice(string.ascii_lowercase+string.digits) for _ in range(16)) + random.choice([".dl.zip",".cdn2.mov",".files.zip"])
+            evs.append(dict(ts=t.isoformat(), pid=pid, method="HTTPS", host=host,
+                            size_kb=int(abs(random.gauss(900, 150))), ent=3.8, model_initiated=True))
 
 evs.sort(key=lambda e: e["ts"])
-with egress_path.open("w") as f:
+with egress_path.open("w", encoding="utf-8") as f:
     for ev in evs:
         f.write(json.dumps(ev)+"\n")
-print("Wrote", egress_path)
+print("Wrote", egress_path, "events:", len(evs))
